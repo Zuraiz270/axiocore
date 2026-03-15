@@ -18,11 +18,11 @@ Axiocore V3 is an enterprise-grade document ingestion and extraction pipeline de
 - Local OCR cascade (Tier 0 to Tier 3) and Zod-enforced schema extraction.
 - Human-in-the-Loop (HITL) review portal with Redlock concurrency limits.
 - Background asynchronous queueing via Redis Streams.
+- **Phase 5 Intelligence**: DP-LoRA fine-tuning, HOTL Auto-approval (>95% confidence), and Chain-of-Scroll navigation.
 
 **Out of Scope (Deferred to V4):**
 - Machine Unlearning (SISA).
 - Visual prompt injection defense systems.
-- Auto-approval workflows (Human-Out-Of-The-Loop) before 95% accuracy is empirically proven.
 
 ## 4. Key Stakeholders
 - **Operations Team:** Primary users of the HITL Review Portal for data validation.

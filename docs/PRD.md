@@ -31,6 +31,11 @@ To build a highly accurate, self-hosted document parsing engine that turns unstr
 * **FR4.2:** Review sessions must be protected by a strict 15-second Atomic Lock (Redis Redlock), renewed every 5 seconds.
 * **FR4.3:** High-stakes values (e.g., Invoice Total > $5000) require Consensus Labeling (two distinct reviewers).
 
+### FR5: Intelligence & Efficiency (Self-Improvement)
+* **FR5.1:** System shall utilize Differential Privacy (DP-LoRA) to allow secure, tenant-agnostic fine-tuning of extraction models without leaking raw PII.
+* **FR5.2:** System shall implement Human-on-the-Loop (HOTL) auto-approval for documents with >95% confidence and low forensic risk (A16).
+* **FR5.3:** System shall use Chain-of-Scroll (Agentic Navigation) to skip non-relevant pages in large documents (>5 pages) to minimize LLM token costs.
+
 ## 4. Non-Functional Requirements (NFRs)
 * **NFR1 - Security:** Multi-tenant Row-Level Security (RLS) mandated in PostgreSQL. JWT logic must include a Redis-backed denylist.
 * **NFR2 - Latency:** Gateway must acknowledge receipt and persist Outbox event in < 500ms. GPU inference p95 target is 5s/page.

@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import json
+import re
 from src.redis_client import get_redis_client
 from src.storage.minio_client import MinioClient
 from src.storage.db import update_document_status
@@ -14,7 +15,8 @@ CONSUMER_GROUP = "axiocore_extraction_group"
 CONSUMER_NAME = "worker_1"
 STREAMS = {
     "stream:extraction:high": ">",
-    "stream:extraction:low": ">"
+    "stream:extraction:low": ">",
+    "stream:extraction:complete": ">"
 }
 
 minio = MinioClient()
@@ -31,11 +33,8 @@ async def ensure_consumer_group(redis_client, stream_key: str):
         else:
             logger.error(f"Error creating generic consumer group for {stream_key}: {e}")
 
-async def process_outbox_event(event_id: str, payload_data: dict, stream_key: str):
-    """Route processing based on the event payload."""
-    global pii_masker
-    if not pii_masker:
-        pii_masker = PiiMasker()
+    return False
+
 def detect_high_value_document(content: str) -> bool:
     """
     Scans extracted text for currency values exceeding $5,000.
@@ -53,9 +52,18 @@ def detect_high_value_document(content: str) -> bool:
             continue
     return False
 
-async def process_outbox_event(event: dict):
-    tenant_id = event["tenant_id"]
-    document_id = event["aggregate_id"]
+async def process_outbox_event(event_id: str, payload_data: dict, stream_key: str):
+    """
+    Main entry point for processing an extraction event from Redis Streams.
+    """
+    # Parse payload if it's a string
+    if isinstance(payload_data.get("payload"), str):
+        event = json.loads(payload_data["payload"])
+    else:
+        event = payload_data
+
+    tenant_id = event.get("tenant_id")
+    document_id = event.get("aggregate_id")
     payload = event.get("payload", {})
     storage_path = payload.get("storage_path")
     mime_type = payload.get("mime_type")
@@ -117,6 +125,20 @@ async def process_outbox_event(event: dict):
                 requires_consensus=requires_consensus,
                 forensics_report=forensics_report
             )
+
+            # 6. Notify Gateway of completion (Phase 5 HOTL Trigger)
+            # This triggers the AutoApprovalService in NestJS
+            redis_client = get_redis_client()
+            await redis_client.xadd(
+                "stream:extraction:complete",
+                {
+                    "tenant_id": tenant_id,
+                    "document_id": document_id,
+                    "confidence_score": str(confidence),
+                    "requires_consensus": "true" if requires_consensus else "false"
+                }
+            )
+            logger.info(f"Published completion event for {document_id}")
         else:
             logger.warning(f"Extraction failed/not fully implemented: {extraction_result.get('reason')}")
             update_document_status(tenant_id, document_id, "EXTRACTION_FAILED")

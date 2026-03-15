@@ -20,6 +20,8 @@
 * **Pillow & python-magic:** Native Python libraries utilized prior to analysis to strip Exif data and validate safe MIME payloads to prevent path traversal/polyglot attacks.
 * **OCR Cascade:** `pdfjs-dist` (Digital Text) -> `OCRmyPDF` (Simple Scans) -> `Docling/PaddleOCR 3.0` (Complex Layouts/Scan defects).
 * **Local Schema Extractor:** vLLM or Ollama serving Llama-3-8B-Instruct (or equivalent local SLM) using strict Zod outputs to parse Markdown/OCR to predefined JSON schemas.
+* **Fine-Tuning (DP-LoRA):** `PEFT` (Parameter-Efficient Fine-Tuning) and `Opacus` (Differential Privacy Engine for PyTorch) for secure, local model adaptation.
+* **Intelligent Navigation:** `PyMuPDF` (fitz) for sparse page selection and heuristic-based Chain-of-Scroll optimizations.
 
 ## 4. Infrastructure & Ops
 * **Docker / Docker Compose:** Containerization for local development parity and seamless CI/CD integration.

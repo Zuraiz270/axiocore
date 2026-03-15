@@ -267,22 +267,21 @@ Erasure Request → 1. PostgreSQL DELETE (documents, extractions, audit_logs)
 
 ---
 
-## §9 V3/V4 Boundary
+### Phase 5 (Implemented & Verified)
+Advanced agentic components moved from backlog to core production infrastructure:
 
-### V3 — Build Now
-Ingestion gateway, explicitly scoped FastAPI worker (runs OCR, Pillow EXIF stripping, Presidio internally), strict 9-state pipeline, transactional outbox sequence, local-first cascade, HITL review-all with consensus labeling, RLS multi-tenancy, DLQ, backpressure routing, GDPR cascade deletion, schema validation.
+| Feature | Implementation | Rationale |
+|:---|:---|:---|
+| DP-LoRA (Opacus) | `TrainingService` (Python) | Privacy-preserving fine-tuning via PEFT + Opacus. |
+| Auto-Approval (HOTL) | `AutoApprovalService` (NestJS) | Confidence-based automated approval (>95%). |
+| Agentic Navigation | `AgenticNavigator` (Python) | "Chain-of-Scroll" sparse page selection for long docs. |
 
-### Phase 5 (V4 Backlog)
-Advanced architectural components deferred from V3 implementation to maintain immediate execution velocity:
-
+### Future Backlog (V6+)
 | Deferred Feature | Trigger / Rationale |
 |:---|:---|
-| DP-LoRA (Opacus) fine-tuning | Hard requirement for SFT to guarantee privacy, deferred until 1,000+ approved labels gathered |
-| PaddleOCR-VL & DeepSeek-OCR | VLM benchmarking required; Tier 3 remains feature-flagged OFF until verified |
-| Auto-Approval (HOTL) | Wait until > 95% baseline accuracy proven |
-| Visual prompt injection defense | Requires advanced adversarial blocking |
-| Agentic long-doc navigation | Chain-of-Scroll / SCoPE logic deferred in favor of page-bound provenance indices |
-| Reviewer analytics / SISA | Label-poisoning defense and Machine Unlearning too immature for V3 |
+| SISA / Machine Unlearning | Label-poisoning defense and erasure verification. |
+| Visual Prompt Injection | Advanced adversarial blocking and multimodal sanitization. |
+| VLM Tier 3 Stabilization | Benchmarking required for full production rollout. |
 
 ---
 

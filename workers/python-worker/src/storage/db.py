@@ -8,7 +8,8 @@ logger = logging.getLogger(__name__)
 def get_db_connection():
     db_url = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/axiocore")
     return psycopg2.connect(db_url)
-
+def update_document_status(
+    tenant_id: str, 
     document_id: str, 
     status: str, 
     confidence_score: float = None, 
@@ -65,6 +66,26 @@ def get_document_metadata(tenant_id: str, document_id: str) -> dict:
             return dict(doc) if doc else None
     except Exception as e:
         logger.error(f"Failed to get document metadata: {e}")
+        raise
+    finally:
+        conn.close()
+
+def get_training_samples(limit: int = 100) -> list:
+    """
+    Fetches documents with 'APPROVED' status for DP-LoRA fine-tuning.
+    Returns a list of dicts with document and tenant IDs.
+    """
+    conn = get_db_connection()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            # We fetch across all tenants for bulk fine-tuning (DP ensures privacy)
+            cursor.execute(
+                "SELECT id, tenant_id, schema_type FROM documents WHERE status = 'APPROVED' LIMIT %s;", 
+                (limit,)
+            )
+            return cursor.fetchall()
+    except Exception as e:
+        logger.error(f"Failed to fetch training samples: {e}")
         raise
     finally:
         conn.close()

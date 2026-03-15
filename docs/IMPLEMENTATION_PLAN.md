@@ -98,11 +98,17 @@ Fine-tuning operations are blocked until the following criteria are met (no cale
 
 ---
 
-## Phase 5: Late-Phase Hardening (V4 Backlog)
-**Focus:** Operations deferred from V3 scope. Current code must not implement these features until Phase 1-4 are hardened.
+## Phase 5: Intelligence & Efficiency (Completed)
+**Focus:** Transitions Axiocore into a self-improving, agentic system.
 
+*   **DP-LoRA (`TrainingService`):** Privacy-preserving fine-tuning via `PEFT` and `Opacus`.
+*   **Auto-Approval (`AutoApprovalService`):** Human-on-the-Loop automation for high-confidence extractions.
+*   **Agentic Navigation (`AgenticNavigator`):** Sparse page processing (Chain-of-Scroll) for large files.
+*   **Status:** All features implemented, verified via unit tests, and integrated into the active worker/gateway pipeline.
+
+---
+
+## Future Backlog (V5+)
 *   SISA / Machine unlearning frameworks.
 *   Visual prompt injection defense systems.
-*   Agentic long-document navigation (Chain-of-Scroll / SCoPE-style logic).
-*   Advanced reviewer-quality analytics and label-poisoning defenses.
-*   DP-LoRA / Opacus (Differential Privacy) configurations for unconstrained fine-tuning.
+*   PaddleOCR-VL & Tier 3 VLM stabilization.

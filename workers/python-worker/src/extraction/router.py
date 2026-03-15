@@ -43,26 +43,41 @@ class ExtractionRouter:
         Executes the assigned tier and manages fallbacks if a tier fails.
         """
         assigned_tier = ExtractionRouter.route_document(document_metadata, payload_bytes)
+        mime_type = document_metadata.get("mime_type", "")
         
         try:
             from .tier0_direct import Tier0DirectExtractor
             from .tier1_ocrmypdf import Tier1OcrExtractor
             from .tier2_docling import Tier2DoclingExtractor
             from .tier3_vlm import Tier3VlmExtractor
+            from .agentic_navigator import AgenticNavigator
             
-            if assigned_tier == "tier0":
-                content = Tier0DirectExtractor.extract(payload_bytes)
-                return {"status": "success", "tier": 0, "content": content, "confidence": 1.0}
-            elif assigned_tier == "tier1":
-                content = Tier1OcrExtractor.extract(payload_bytes)
-                # Tier 1 (OCR) typically has lower confidence than Direct Parse
-                return {"status": "success", "tier": 1, "content": content, "confidence": 0.85}
-            elif assigned_tier == "tier2":
-                content = Tier2DoclingExtractor.extract(payload_bytes)
-                return {"status": "success", "tier": 2, "content": content, "confidence": 0.9}
-            elif assigned_tier == "tier3":
-                content = Tier3VlmExtractor.extract(payload_bytes)
-                return {"status": "success", "tier": 3, "content": content, "confidence": 0.95}
+            page_count = document_metadata.get("page_count", 1)
+            
+            def get_tier_executor(tier):
+                if tier == "tier0": return Tier0DirectExtractor.extract
+                if tier == "tier1": return Tier1OcrExtractor.extract
+                if tier == "tier2": return Tier2DoclingExtractor.extract
+                if tier == "tier3": return Tier3VlmExtractor.extract
+                return None
+
+            executor = get_tier_executor(assigned_tier)
+            if not executor:
+                return {"status": "failed", "reason": "Unknown routing tier."}
+
+            # Apply Agentic Navigation for PDFs > 5 pages
+            if mime_type == "application/pdf" and page_count > 5:
+                content = AgenticNavigator.navigate_and_extract(payload_bytes, page_count, executor)
+            else:
+                content = executor(payload_bytes)
+
+            confidence_map = {"tier0": 1.0, "tier1": 0.85, "tier2": 0.9, "tier3": 0.95}
+            return {
+                "status": "success", 
+                "tier": int(assigned_tier[-1]), 
+                "content": content, 
+                "confidence": confidence_map.get(assigned_tier, 0.5)
+            }
                 
         except Exception as e:
             logger.error(f"Failed to execute extraction tier {assigned_tier}: {str(e)}")

@@ -20,10 +20,15 @@ If you are a new developer or an AI Agent contributing to this repository, your 
 * **Event Backbone:** Redis Streams 7.x (Kappa architecture, High/Low queue routing)
 * **Object Storage:** MinIO (S3-compatible, self-hosted)
 
-## 🚀 Getting Started (Phase 1 WIP)
-Axiocore V3 is currently building **Phase 1: Core Muscle**. 
+## 🚀 Getting Started (Phase 5 Complete)
+Axiocore V3 is now at **Phase 5: Intelligence & Efficiency**. 
 
-Once the initial scaffolding is merged, you will be able to spin up the foundational services using Docker:
+The system has transitioned from a static pipeline to an agentic platform with:
+- **Self-Improving AI:** Privacy-preserving fine-tuning via DP-LoRA.
+- **Auto-Approvals (HOTL):** Safety-gated automation for high-confidence extractions.
+- **Chain-of-Scroll:** Intelligent sparse navigation for large multi-page PDFs.
+
+Run the foundation services using Docker:
 ```bash
 docker-compose up -d postgres redis minio
 ```
@@ -32,6 +37,45 @@ Followed by starting the NestJS orchestration gateway:
 ```bash
 pnpm install
 pnpm dev --filter=@opp/gateway
+```
+
+3. **Start the Python Worker:**
+```bash
+cd workers/python-worker
+source venv/bin/activate
+python src/main.py
+```
+
+## 🧪 Testing & Verification
+Axiocore uses a phase-by-phase verification strategy.
+
+### 1. Automated System Check
+Run the master verification suite to check all 5 phases (Infrastructure, Privacy, Extraction, Hardening, Intelligence):
+```bash
+cd workers/python-worker
+$env:PYTHONPATH="."; python -m pytest master_system_verify.py
+```
+
+### 2. Manual Smoke Test
+Upload a document via the Gateway and monitor the Redis stream:
+```bash
+# Monitor the high-priority stream
+redis-cli XREAD BLOCK 0 STREAMS stream:extraction:high $
+```
+
+## 📂 Project Structure
+```text
+├── apps/
+│   └── backend_gateway/      # NestJS: Auth, Ingest, HITL Review, Redis Relay
+├── workers/
+│   └── python-worker/        # FastAPI: OCR Cascade (Tier 0-3), PII, DP-LoRA
+├── packages/
+│   └── shared/               # Zod schemas, TS interfaces, Shared Logic
+├── docs/
+│   ├── ARCHITECTURE.md       # Definitive technical specification
+│   ├── adrs/                 # Architectural Decision Records (ADR 001-004)
+│   └── handoffs/             # Phase-specific execution logs
+└── docker-compose.yml        # Services: PG, Redis, MinIO
 ```
 
 ## 🔒 Security & Compliance

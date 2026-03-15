@@ -38,6 +38,20 @@
   1. Microsoft Presidio local models run **before** schema extraction to mask identifiable markers.
   2. Nightly MinIO orphan cleanup scripts. Raw assets are permanently deleted upon terminal status (`STORED` or `DELETED`).
 
+### Threat 6: Privacy Leakage via Fine-Tuning (Model Inversion)
+* **Description:** A sophisticated attacker analyzes updated DP-LoRA weights to reconstruct sensitive PII included in the fine-tuning set.
+* **Impact:** High (Privacy Violation).
+* **Mitigation:**
+  1. **Differential Privacy (Opacus):** Every training step is noise-injected and gradient-clipped. Training stops automatically if the predefined Privacy Budget ($\epsilon$) is exceeded.
+  2. **Tenant-Agnostic Weight Mixing:** Weights are never fine-tuned on a single tenant's data in isolation for production, ensuring global patterns rather than individual records are learned.
+
+### Threat 7: Poisoned Auto-Approval (HOTL Bypass)
+* **Description:** An attacker submits a document that mathematically hits the >95% confidence threshold but contains malicious or fraudulent payload that bypasses human review.
+* **Impact:** High (Financial/Operational Risk).
+* **Mitigation:**
+  1. **Heuristic Floor:** Auto-approval is disabled for documents with any `forensics_report` red flags (e.g., suspicious metadata, digital signature mismatch).
+  2. **Consensus Requirement:** High-value documents (currently >$5000) are explicitly excluded from the `AutoApprovalService` logic.
+
 ## 2. Secure Development Lifecycle (SDLC) Constraints
 * **Dependencies:** `pnpm audit` enforced in CI pipeline.
 * **Code Review:** Consensus required for any changes to schema routing or RLS policies.

@@ -55,12 +55,15 @@ export class ReviewService {
       isCorrection: boolean;
       extractionVersion: number; // A1 Requirement
     },
+    isSystem: boolean = false, // Added for Phase 5 HOTL
   ) {
-    // A5: Verify Lock Ownership before submission
+    // A5: Verify Lock Ownership before submission (Bypass if system review)
     const lockKey = `lock:document:${documentId}`;
-    const lockOwner = await this.redis.get(lockKey);
-    if (lockOwner !== reviewerId) {
-       throw new UnauthorizedException('Submission denied: Reviewer lock expired or belongs to another session.');
+    if (!isSystem) {
+      const lockOwner = await this.redis.get(lockKey);
+      if (lockOwner !== reviewerId) {
+         throw new UnauthorizedException('Submission denied: Reviewer lock expired or belongs to another session.');
+      }
     }
     // 1. "Suspiciously Fast" Flagging (Phase 4 Security)
     if (data.durationMs < 2000 && data.status === 'APPROVED') {
