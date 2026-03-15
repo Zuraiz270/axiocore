@@ -1,10 +1,17 @@
 import logging
+import os
+import sys
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 import asyncio
 
+# Add Tesseract to PATH if it exists in the default Windows location
+tesseract_path = r"C:\Program Files\Tesseract-OCR"
+if os.path.exists(tesseract_path):
+    os.environ["PATH"] += os.pathsep + tesseract_path
+
 # Setup basic logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logging.basicConfig(level=logging.DEBUG, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
 from src.stream_consumer import stream_consumer_loop

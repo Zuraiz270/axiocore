@@ -83,6 +83,10 @@ export class IngestService {
         storage_path: doc.storage_path,
         priority_queue: lane,
         compute_weight: weight,
+        mime_type: doc.mime_type,
+        schema_type: doc.schema_type,
+        source_type: doc.source_type,
+        file_size_bytes: doc.file_size_bytes,
       };
 
       const outbox = await tx.outboxEvent.create({

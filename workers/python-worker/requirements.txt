@@ -12,3 +12,6 @@ python-multipart
 spacy
 boto3
 psycopg2-binary
+pymupdf
+pytesseract
+docling

@@ -51,6 +51,9 @@ export class OutboxService {
             event_type: event.event_type,
             storage_path: payload.storage_path,
             compute_weight: String(payload.compute_weight),
+            mime_type: payload.mime_type || '',
+            schema_type: payload.schema_type || '',
+            source_type: payload.source_type || 'scanned',
           };
 
           // 3. Publish to Redis Stream

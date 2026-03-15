@@ -6,6 +6,7 @@ from src.storage.minio_client import MinioClient
 from src.storage.db import update_document_status
 from src.privacy.exif_stripper import ExifStripper
 from src.privacy.pii_masker import PiiMasker
+from src.extraction.router import ExtractionRouter
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ async def process_outbox_event(event_id: str, payload_data: dict, stream_key: st
     storage_path = payload_data.get("storage_path")
 
     logger.info(f"Processing event {event_id} - Doc {document_id}")
+    logger.debug(f"FULL PAYLOAD: {payload_data}")
     
     if event_type == "document.ingested":
         try:
@@ -52,17 +54,33 @@ async def process_outbox_event(event_id: str, payload_data: dict, stream_key: st
             raw_bytes = minio.download_document(storage_path)
             
             # Enforce Policy A6: EXIF Stripping
-            clean_bytes = ExifStripper.strip_metadata(raw_bytes)
+            clean_bytes = ExifStripper.strip_metadata(raw_bytes, payload_data.get("mime_type"))
             
             # Store isolated 'Evidence Artifact' safely
             evidence_path = storage_path.replace("incoming/", "evidence/")
             minio.upload_document(clean_bytes, evidence_path, payload_data.get("mime_type", ""))
             
-            # (Tier 0-3 extraction cascades would execute here)
-            # ...
-            # simulated_ocr_text = "My name is John Doe and my phone is 555-1234."
-            # safe_text = pii_masker.mask_text(simulated_ocr_text)
-            # print("GENERATED TRAINING ARTIFACT:", safe_text)
+            # 5. Extraction Cascade (Tiers 0-3)
+            from src.extraction.router import ExtractionRouter
+            extraction_result = ExtractionRouter.execute_cascade(payload_data, clean_bytes)
+            
+            if extraction_result["status"] == "success":
+                tier = extraction_result.get("tier", "unknown")
+                confidence = extraction_result.get("confidence", 0.0)
+                logger.info(f"Extraction Tier {tier} succeeded with confidence {confidence}")
+                
+                if confidence < 0.75:
+                    logger.warning(f"Confidence {confidence} is below threshold 0.75. Human-in-the-loop mandated.")
+                
+                extracted_text = extraction_result["content"]
+                
+                # 6. Generate Training/Eval Artifact (PII Masked)
+                safe_text = PiiMasker.mask(extracted_text)
+                training_path = storage_path.replace("incoming/", "training/")
+                minio.upload_document(safe_text.encode('utf-8'), training_path, "text/plain")
+                logger.info(f"Stored PII-masked training artifact at {training_path}")
+            else:
+                logger.warning(f"Extraction failed/not fully implemented: {extraction_result.get('reason')}")
 
             update_document_status(tenant_id, document_id, "PENDING_REVIEW")
         except Exception as e:
@@ -81,6 +99,7 @@ async def stream_consumer_loop(stop_event: asyncio.Event):
     
     while not stop_event.is_set():
         try:
+            # logger.debug("Polling Redis Streams...")
             # Block for 2 seconds, read 5 events maximum across defined streams
             messages = await redis_client.xreadgroup(
                 groupname=CONSUMER_GROUP,

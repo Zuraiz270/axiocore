@@ -3,11 +3,15 @@ from PIL import Image
 
 class ExifStripper:
     @staticmethod
-    def strip_metadata(image_bytes: bytes) -> bytes:
+    def strip_metadata(image_bytes: bytes, mime_type: str = None) -> bytes:
         """
-        Takes raw image bytes, removes all EXIF and GPS metadata,
-        and returns the sanitized image bytes.
+        Takes raw bytes, removes all EXIF and GPS metadata if it's an image,
+        otherwise returns the original bytes.
         """
+        # If it's not a known image format, skip stripping to avoid Pillow errors
+        if mime_type and not mime_type.startswith("image/"):
+            return image_bytes
+
         try:
             with Image.open(io.BytesIO(image_bytes)) as img:
                 # To remove EXIF data, we rebuild the image data without passing the 'exif' kwarg.
