@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+redis
+pydantic
+pydantic-settings
+Pillow
+presidio-analyzer
+presidio-anonymizer
+aioredis
+tenacity
+python-multipart
+spacy
+boto3
+psycopg2-binary
