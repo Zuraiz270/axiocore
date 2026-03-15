@@ -36,57 +36,94 @@ async def process_outbox_event(event_id: str, payload_data: dict, stream_key: st
     global pii_masker
     if not pii_masker:
         pii_masker = PiiMasker()
-
-    event_type = payload_data.get("event_type")
-    tenant_id = payload_data.get("tenant_id")
-    document_id = payload_data.get("id")
-    storage_path = payload_data.get("storage_path")
-
-    logger.info(f"Processing event {event_id} - Doc {document_id}")
-    logger.debug(f"FULL PAYLOAD: {payload_data}")
+def detect_high_value_document(content: str) -> bool:
+    """
+    Scans extracted text for currency values exceeding $5,000.
+    Matches formats like $5,000, $10.000, 5000.00 USD, etc.
+    """
+    # Regex to find numbers with optional decimals and commas
+    numbers = re.findall(r'[\$£€¥]?\s?(\d+(?:,\d{3})*(?:\.\d{2})?)', content)
     
-    if event_type == "document.ingested":
+    for num_str in numbers:
         try:
-            # Transition to extracting
-            update_document_status(tenant_id, document_id, "EXTRACTING")
-            
-            # Download dirty original payload from Minio
-            raw_bytes = minio.download_document(storage_path)
-            
-            # Enforce Policy A6: EXIF Stripping
-            clean_bytes = ExifStripper.strip_metadata(raw_bytes, payload_data.get("mime_type"))
-            
-            # Store isolated 'Evidence Artifact' safely
-            evidence_path = storage_path.replace("incoming/", "evidence/")
-            minio.upload_document(clean_bytes, evidence_path, payload_data.get("mime_type", ""))
-            
-            # 5. Extraction Cascade (Tiers 0-3)
-            from src.extraction.router import ExtractionRouter
-            extraction_result = ExtractionRouter.execute_cascade(payload_data, clean_bytes)
-            
-            if extraction_result["status"] == "success":
-                tier = extraction_result.get("tier", "unknown")
-                confidence = extraction_result.get("confidence", 0.0)
-                logger.info(f"Extraction Tier {tier} succeeded with confidence {confidence}")
-                
-                if confidence < 0.75:
-                    logger.warning(f"Confidence {confidence} is below threshold 0.75. Human-in-the-loop mandated.")
-                
-                extracted_text = extraction_result["content"]
-                
-                # 6. Generate Training/Eval Artifact (PII Masked)
-                safe_text = PiiMasker.mask(extracted_text)
-                training_path = storage_path.replace("incoming/", "training/")
-                minio.upload_document(safe_text.encode('utf-8'), training_path, "text/plain")
-                logger.info(f"Stored PII-masked training artifact at {training_path}")
-            else:
-                logger.warning(f"Extraction failed/not fully implemented: {extraction_result.get('reason')}")
+            val = float(num_str.replace(',', ''))
+            if val > 5000:
+                return True
+        except ValueError:
+            continue
+    return False
 
-            update_document_status(tenant_id, document_id, "PENDING_REVIEW")
-        except Exception as e:
-            logger.error(f"Failed pipeline for document {document_id}: {e}")
+async def process_outbox_event(event: dict):
+    tenant_id = event["tenant_id"]
+    document_id = event["aggregate_id"]
+    payload = event.get("payload", {})
+    storage_path = payload.get("storage_path")
+    mime_type = payload.get("mime_type")
+
+    if not storage_path:
+        logger.error(f"Missing storage_path for document {document_id}")
+        return
+
+    try:
+        # 1. Download from MinIO
+        minio = MinioClient()
+        raw_data = minio.download_document(storage_path)
+
+        # 2. Privacy: EXIF Stripping (Modality-Aware)
+        stripper = ExifStripper()
+        sanitized_data = stripper.strip_metadata(raw_data, mime_type)
+        
+        # 3. Security: PDF Forensics (Phase 4)
+        forensics_report = None
+        if mime_type == "application/pdf":
+            from src.security.pdf_forensics import PDFForensics
+            forensics = PDFForensics()
+            forensics_report = forensics.analyze(sanitized_data)
+            logger.info(f"Forensics completed for {document_id}. Risk: {forensics_report['integrity_risk']}")
+
+        # 4. Extraction Cascade
+        router = ExtractionRouter()
+        extraction_result = await router.execute_cascade(sanitized_data, event)
+        
+        if extraction_result and extraction_result.get("content"):
+            content = extraction_result["content"]
+            confidence = extraction_result.get("confidence", 0.0)
+            
+            # Consensus Labeling Requirement: Values > $5,000 OR High Integrity Risk
+            requires_consensus = detect_high_value_document(content)
+            if forensics_report and forensics_report.get("integrity_risk") == "high":
+                requires_consensus = True
+                logger.warning(f"Consensus labeling triggered by forensics risk for {document_id}")
+
+            if requires_consensus:
+                logger.info(f"High-value/Risk document detected. Triggering consensus labeling.")
+
+            # 5. Privacy: PII Masking for Training Artifacts
+            from src.privacy.pii_masker import PiiMasker
+            masker = PiiMasker()
+            safe_text = masker.mask_text(content)
+            
+            # Store Derived Artifact
+            training_path = f"training/{tenant_id}/{document_id}.txt"
+            minio.upload_document(safe_text.encode('utf-8'), training_path, "text/plain")
+            logger.info(f"Stored PII-masked training artifact at {training_path}")
+            
+            # Finalize with metadata
+            update_document_status(
+                tenant_id, 
+                document_id, 
+                "PENDING_REVIEW", 
+                confidence_score=confidence,
+                requires_consensus=requires_consensus,
+                forensics_report=forensics_report
+            )
+        else:
+            logger.warning(f"Extraction failed/not fully implemented: {extraction_result.get('reason')}")
             update_document_status(tenant_id, document_id, "EXTRACTION_FAILED")
-            raise
+    except Exception as e:
+        logger.error(f"Failed pipeline for document {document_id}: {e}")
+        update_document_status(tenant_id, document_id, "EXTRACTION_FAILED")
+        raise
 
 async def stream_consumer_loop(stop_event: asyncio.Event):
     redis_client = get_redis_client()

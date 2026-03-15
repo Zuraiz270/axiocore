@@ -45,6 +45,9 @@ model Document {
   status             DocumentStatus @default(INGESTED)
   priority_queue     PriorityQueue
 
+  requires_consensus Boolean        @default(false)
+  confidence_score   Float?
+  
   reviewer_id        String?        @db.Uuid
   locked_at          DateTime?
   extraction_version Int            @default(1)
@@ -52,13 +55,48 @@ model Document {
   schema_type        String
   source_type        String
   artifact_hash_set  String?
+  forensics_report   Json?          @db.JsonB
 
   created_at         DateTime       @default(now())
   updated_at         DateTime       @updatedAt
 
+  reviews            Review[]
+
   @@index([tenant_id, status])
   @@index([tenant_id, locked_at])
   @@map("documents")
+}
+
+model Review {
+  id                 String   @id @default(uuid()) @db.Uuid
+  document_id        String   @db.Uuid
+  reviewer_id        String   @db.Uuid
+  tenant_id          String   @db.Uuid
+  status             String   // APPROVED, REJECTED
+  comment            String?
+  review_duration_ms Int?     // To detect "Suspiciously Fast" approvals
+  was_corrected      Boolean  @default(false)
+  created_at         DateTime @default(now())
+
+  document           Document @relation(fields: [document_id], references: [id])
+  reason             String?  // Optional machine/human reason for status (e.g. forensics risk)
+
+  @@index([document_id])
+  @@index([tenant_id])
+  @@map("reviews")
+}
+
+model DeletionRegistry {
+  id             String   @id @default(uuid()) @db.Uuid
+  document_id    String   @db.Uuid
+  tenant_id      String   @db.Uuid
+  storage_path   String
+  status         String   @default("pending") // pending, completed
+  requested_at   DateTime @default(now())
+  completed_at   DateTime?
+
+  @@index([tenant_id, status])
+  @@map("deletion_registry")
 }
 
 model OutboxEvent {

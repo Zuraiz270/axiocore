@@ -9,7 +9,12 @@ def get_db_connection():
     db_url = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/axiocore")
     return psycopg2.connect(db_url)
 
-def update_document_status(tenant_id: str, document_id: str, status: str):
+    document_id: str, 
+    status: str, 
+    confidence_score: float = None, 
+    requires_consensus: bool = None,
+    forensics_report: dict = None
+):
     """
     Updates the document status directly in Postgres. Enforces RLS by setting 
     the local tenant context before executing the query.
@@ -20,11 +25,27 @@ def update_document_status(tenant_id: str, document_id: str, status: str):
             # 1. Enforce Row-Level Security context for the transaction
             cursor.execute("SET LOCAL app.current_tenant = %s;", (tenant_id,))
             
-            # 2. Update the status
-            cursor.execute(
-                "UPDATE documents SET status = %s, updated_at = NOW() WHERE id = %s AND tenant_id = %s;",
-                (status, document_id, tenant_id)
-            )
+            # 2. Update the status and metrics
+            fields = ["status = %s", "updated_at = NOW()"]
+            params = [status]
+            
+            if confidence_score is not None:
+                fields.append("confidence_score = %s")
+                params.append(confidence_score)
+            
+            if requires_consensus is not None:
+                fields.append("requires_consensus = %s")
+                params.append(requires_consensus)
+
+            if forensics_report is not None:
+                fields.append("forensics_report = %s")
+                import json
+                params.append(json.dumps(forensics_report))
+            
+            params.extend([document_id, tenant_id])
+            query = f"UPDATE documents SET {', '.join(fields)} WHERE id = %s AND tenant_id = %s;"
+            cursor.execute(query, tuple(params))
+            
         conn.commit()
         logger.info(f"Updated document {document_id} status to {status}")
     except Exception as e:

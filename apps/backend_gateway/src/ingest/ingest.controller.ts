@@ -3,11 +3,13 @@ import { IngestService } from './ingest.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { IngestRequestSchema } from '@opp/shared';
 
+import { ThrottlerGuard } from '@nestjs/throttler';
+
+@UseGuards(JwtAuthGuard, ThrottlerGuard)
 @Controller('documents')
 export class IngestController {
   constructor(private readonly ingestService: IngestService) {}
 
-  @UseGuards(JwtAuthGuard)
   @Post('ingest')
   async ingestDocument(@Request() req, @Body() body: any) {
     // 1. Validate payload using the shared Zod schema
@@ -17,6 +19,25 @@ export class IngestController {
     }
     
     const validatedData = validationResult.data;
+
+    // A2: Hostile Document Admission Validations
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+    const MAX_PAGES = 200;
+    const ALLOWED_MIMES = [
+      'application/pdf',
+      'image/png',
+      'image/jpeg',
+      'image/tiff',
+      'image/heic'
+    ];
+
+    if (validatedData.file_buffer && validatedData.file_buffer.length > MAX_FILE_SIZE) {
+      throw new BadRequestException('File size exceeds the 50MB limit (A2).');
+    }
+
+    if (!ALLOWED_MIMES.includes(validatedData.mime_type)) {
+      throw new BadRequestException(`Unsupported format: ${validatedData.mime_type}. Allowed: PDF, PNG, JPG, TIFF, HEIC (A2).`);
+    }
 
     // 2. Extract tenant context established by the JwtAuthGuard
     const tenantId = req.user.tenantId;

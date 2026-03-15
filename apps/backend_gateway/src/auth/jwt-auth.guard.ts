@@ -1,15 +1,11 @@
 import { ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import Redis from 'ioredis';
+import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
-  private readonly redisClient: Redis;
-
-  constructor() {
+  constructor(private readonly redisService: RedisService) {
     super();
-    // In a real app we would inject this, but for the Phase 1 scaffold this establishes the connection.
-    this.redisClient = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -30,7 +26,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     const token = authHeader.split(' ')[1];
 
     // 3. Redis Denylist check (from Axiocore V3 Spec: Security)
-    const isRevoked = await this.redisClient.get(`denylist:${token}`);
+    const isRevoked = await this.redisService.get(`denylist:${token}`);
     if (isRevoked) {
       throw new UnauthorizedException('This session has been revoked.');
     }
