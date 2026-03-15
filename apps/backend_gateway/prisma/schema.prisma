@@ -1,0 +1,78 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum DocumentStatus {
+  INGESTED
+  EXTRACTING
+  PENDING_REVIEW
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  EXTRACTION_FAILED
+  STORED
+  DLQ
+}
+
+enum PriorityQueue {
+  high
+  low
+}
+
+enum OutboxStatus {
+  PENDING
+  PUBLISHED
+  FAILED
+}
+
+model Document {
+  id                 String         @id @default(uuid()) @db.Uuid
+  tenant_id          String         @db.Uuid
+  original_filename  String
+  mime_type          String
+  file_size_bytes    Int
+  page_count         Int
+  storage_path       String
+
+  status             DocumentStatus @default(INGESTED)
+  priority_queue     PriorityQueue
+
+  reviewer_id        String?        @db.Uuid
+  locked_at          DateTime?
+  extraction_version Int            @default(1)
+  
+  schema_type        String
+  source_type        String
+  artifact_hash_set  String?
+
+  created_at         DateTime       @default(now())
+  updated_at         DateTime       @updatedAt
+
+  @@index([tenant_id, status])
+  @@index([tenant_id, locked_at])
+  @@map("documents")
+}
+
+model OutboxEvent {
+  id             String       @id @default(uuid()) @db.Uuid
+  tenant_id      String       @db.Uuid
+  aggregate_type String
+  aggregate_id   String       @db.Uuid
+  event_type     String
+  payload        Json         @db.JsonB
+  status         OutboxStatus @default(PENDING)
+  
+  created_at     DateTime     @default(now())
+  published_at   DateTime?
+
+  @@index([status, created_at])
+  @@map("outbox_events")
+}
